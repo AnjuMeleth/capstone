@@ -1,9 +1,9 @@
-FROM ubuntu
-RUN apt-get update && apt-get install -y python \
+FROM ubuntu:18.04
+RUN apt-get update && apt-get install -y --no-install-recommends python2.7 \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
 
-RUN apt-get update && apt-get install -y python-pip \
+RUN apt-get update && apt-get install -y --no-install-recommends python-pip \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
 
