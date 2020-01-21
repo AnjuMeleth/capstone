@@ -9,7 +9,7 @@ pipeline {
 	stage ('Linting') {
 		steps {
 			sh 'echo "Linting Dockerfile with Hadolint"'
-			sh 'hadolint Dockerfile'
+			sh '/bin/hadolint Dockerfile'
 		}
 	}
      }

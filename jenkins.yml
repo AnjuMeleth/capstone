@@ -32,7 +32,9 @@ Resources:
           wget -q -O - https://pkg.jenkins.io/debian/jenkins.io.key | sudo apt-key add -
           sudo sh -c 'echo deb http://pkg.jenkins.io/debian-stable binary/ > /etc/apt/sources.list.d/jenkins.list'
           sudo apt-get update -y
-          sudo apt-get install jenkins tidy -y
+          sudo apt-get install jenkins -y
+          wget -O /bin/hadolint https://github.com/hadolint/hadolint/releases/download/v1.16.3/hadolint-Linux-x86_64
+          sudo hmod +x /bin/hadolint
       SecurityGroupIds:
         - Ref: JenkinsSecurityGroup
       BlockDeviceMappings:
