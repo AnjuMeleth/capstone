@@ -34,7 +34,7 @@ Resources:
           sudo apt-get update -y
           sudo apt-get install jenkins -y
           wget -O /bin/hadolint https://github.com/hadolint/hadolint/releases/download/v1.16.3/hadolint-Linux-x86_64
-          sudo hmod +x /bin/hadolint
+          sudo chmod +x /bin/hadolint
       SecurityGroupIds:
         - Ref: JenkinsSecurityGroup
       BlockDeviceMappings:
