@@ -39,7 +39,6 @@ Resources:
           sudo apt-get install docker.io
           sudo usermod -aG docker jenkins
           sudo apt-get update
-          sudo apt-get install awscli
       SecurityGroupIds:
         - Ref: JenkinsSecurityGroup
       BlockDeviceMappings:
@@ -47,7 +46,7 @@ Resources:
           Ebs:
             VolumeSize: "10"
       ImageId: ami-005bdb005fb00e791
-      InstanceType: t3.small
+      InstanceType: t3.large
       KeyName: docker_key
   
 Outputs:
