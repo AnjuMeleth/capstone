@@ -6,7 +6,7 @@ dockerpath=anjurose/webapp
 echo "Docker ID and Image: $dockerpath"
 export DOCKER_ID_USER="anjurose"
 docker login
-docker tag predictionapp $DOCKER_ID_USER/webapp
+docker tag webapp $DOCKER_ID_USER/webapp
 
 # Step 3:
 # Push image to a docker repository
