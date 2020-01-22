@@ -36,7 +36,8 @@ pipeline {
 	stage('Deploying to k8 cluster'){
 	      steps {
        		echo 'Deploying to AWS...'
-      		dir ('AppDeployment') {
+      		sh 'export PATH = $PATH:~/.local/bin'
+		dir ('AppDeployment') {
         		withAWS(credentials: 'aws-credentials', region: 'us-west-2') {
             		sh "aws eks --region us-west-2 update-kubeconfig --name eksCluster-3gXSF6B73TlS "
             		sh "kubectl apply -f AppDeployment/udacity-capstone.yaml"
