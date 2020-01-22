@@ -1,5 +1,9 @@
 pipeline {
     agent any
+    environment {
+ 	   registry = "anjurose/udacity-webapp"
+    	   registryCredential = ‘dockerhubID’
+	}	
     stages {
         stage ('Build') {
 		steps {
@@ -13,11 +17,20 @@ pipeline {
 		}
 	
 	}
-	stage ('Push to DockerHub') {
-		steps {
-			sh './run_docker.sh'
-			sh './upload_docker.sh'
+	stage('Building image') {
+      		steps{
+       		 script {
+          		dockerImage = docker.build registry + ":$BUILD_NUMBER"
+       		 }
+     	      }
+   	 }
+    	stage('Deploy Image') {
+      		steps{
+        	 script {
+          		docker.withRegistry( '', registryCredential ) {
+            		dockerImage.push()
 			}
+		    }	
 		}
      }
 }	
