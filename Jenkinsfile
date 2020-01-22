@@ -19,7 +19,7 @@ pipeline {
 	}
 	stage('Building image') {
       		steps{
-        		sh 'docker build . -t registry + ":$BUILD_NUMBER"'  
+        		sh 'docker build . -t anjurose/udacity-webapp:$BUILD_NUMBER"'  
      	      }
    	 }
     	stage('Deploy Image') {
