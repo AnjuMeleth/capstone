@@ -127,4 +127,7 @@ Resources:
         Ebs:
           VolumeSize: '10'  
 
-          
+  Outputs:
+  NodeInstanceRole:
+    Description: The node instance role
+    Value: !GetAtt NodeInstanceRole.Arn        
