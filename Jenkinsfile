@@ -31,15 +31,17 @@ pipeline {
 		    }	
 		}	
            }
-	stage('Deploying to k8 cluster') {
+	stage('Deploying to k8 cluster'){
+	      steps {
        		echo 'Deploying to AWS...'
-      		dir ('./') {
+      		dir ('AppDeployment') {
         		withAWS(credentials: 'aws-credentials', region: 'us-west-2') {
-            		sh "aws eks --region us-west-2 update-kubeconfig --name CapstoneEKS-VUUZkwHTDVPa"
+            		sh "aws eks --region us-west-2 update-kubeconfig --name eksCluster-3gXSF6B73TlS "
             		sh "kubectl apply -f AppDeployment/udacity-capstone.yaml"
             		sh "kubectl get nodes"
             		sh "kubectl get pods"
-        		}	
+       			}
+	 	     }	
      		 }
     	   }
      }
