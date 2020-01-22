@@ -41,7 +41,7 @@ pipeline {
 			sh "aws eks --region us-west-2 update-kubeconfig --name eksCluster-3gXSF6B73TlS "
             		sh 'echo "updated kubeconfig file"'
 			sh "kubectl apply -f aws-auth-cm.yaml"
-			sh 'echo "Applied aws-auth-cm"	
+			sh 'echo "Applied aws-auth-cm"'	
 			sh "kubectl apply -f AppDeployment/udacity-capstone.yaml"
             		sh "kubectl get nodes"
             		sh "kubectl get pods"
