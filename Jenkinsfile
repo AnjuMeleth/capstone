@@ -19,9 +19,7 @@ pipeline {
 	}
 	stage('Building image') {
       		steps{
-       		 script {
-          		dockerImage = docker.build registry + ":$BUILD_NUMBER"
-       		 }
+        		sh 'docker build . -t registry + ":$BUILD_NUMBER"'  
      	      }
    	 }
     	stage('Deploy Image') {
@@ -32,7 +30,18 @@ pipeline {
 			}
 		    }	
 		}	
-	}
+           }
+	stage('Deploying to k8 cluster') {
+       		echo 'Deploying to AWS...'
+      		dir ('./') {
+        		withAWS(credentials: 'aws-credentials', region: 'us-west-2') {
+            		sh "aws eks --region us-west-2 update-kubeconfig --name CapstoneEKS-VUUZkwHTDVPa"
+            		sh "kubectl apply -f AppDeployment/udacity-capstone.yaml"
+            		sh "kubectl get nodes"
+            		sh "kubectl get pods"
+        		}	
+     		 }
+    	   }
      }
 }	
 
