@@ -13,7 +13,7 @@ pipeline {
 		}
 	
 	}
-	stage ('Push to DockerHub')
+	stage ('Push to DockerHub') {
 		steps {
 			sh './run_docker.sh'
 			sh './upload_docker.sh'
