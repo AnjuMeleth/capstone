@@ -7,12 +7,29 @@ Parameters:
     Description: An environment name prfixed to resources
     Type: String
 
+  KeyName:
+    Description: The EC2 Key Pair to allow SSH access to the instances
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: docker_key  
+
+  WorkerNodeBootstrapArguments:
+    Description: Arguments to pass to the bootstrap script. See files/bootstrap.sh in https://github.com/awslabs/amazon-eks-ami
+    Default: "--kubelet-extra-args --node-labels=nodetype=worker"
+    Type: String  
+
 Resources:
 
   #
   # IAM Role needed by the cluster
   #
-  eksClusterRole:
+  EksClusterInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: "/"
+      Roles:
+      - !Ref EksClusterRole
+
+  EksClusterRole:
     Description: Allows EKS to manage clusters on your behalf.
     Type: AWS::IAM::Role
     Properties:
@@ -24,57 +41,164 @@ Resources:
               Service:
                 - eks.amazonaws.com
             Action: sts:AssumeRole
+      Path: "/"
+      RoleName: !Join [ "-", [ !Ref 'AWS::StackName', "EKS-Cluster-Role" ] ]
       ManagedPolicyArns: 
         - arn:aws:iam::aws:policy/AmazonEKSClusterPolicy
         - arn:aws:iam::aws:policy/AmazonEKSServicePolicy
+        - arn:aws:iam::aws:policy/ElasticLoadBalancingFullAccess
 
-  ClusterControlPlaneSecurityGroup:
+  EksClusterSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Cluster communication with worker nodes
+      GroupDescription: Security group EKS Cluster
+      GroupName: !Join [ "", [ !Ref 'AWS::StackName', "-EKS-Cluster-Security-Group" ] ]
       VpcId:
-        Fn::ImportValue:
-          !Sub "${EnvironmentName}-VPCID"
+        Fn::ImportValue: !Sub "${EnvironmentName}-VPCID"
+      Tags:
+      - Key: !Sub "kubernetes.io/cluster/${AWS::StackName}-EKS-Cluster"
+        Value: 'owned'
+      - Key: 'Name'
+        Value: !Join [ "", [ !Ref 'AWS::StackName', "-EKS-Cluster-Security-Group" ] ]
 
-  eksCluster:
+  EksCluster:
     Type: "AWS::EKS::Cluster"
     Properties:
       Version: "1.14"
-      RoleArn: !GetAtt eksClusterRole.Arn
+      RoleArn: !GetAtt  EksClusterRole.Arn
       ResourcesVpcConfig:
         SecurityGroupIds:
-          - !Ref ClusterControlPlaneSecurityGroup
+          - !Ref EksClusterSecurityGroup 
         SubnetIds:
           - Fn::ImportValue:
               !Sub "${EnvironmentName}-PUB1-SN"
           - Fn::ImportValue:
               !Sub "${EnvironmentName}-PUB2-SN"
+  WorkerNodeInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: "/"
+      Roles:
+      - !Ref WorkerNodeInstanceRole
+
+  WorkerNodeInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - ec2.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: "/"
+      RoleName: !Join [ "-", [ !Ref 'AWS::StackName', "EKS-Worker-Node-Role" ] ]
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
+        - arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+  
+  WorkerNodeSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for all nodes in the cluster
+      GroupName: !Join [ "", [ !Ref 'AWS::StackName', "-EKS-Worker-Node-Security-Group" ] ]
+      VpcId:
+        Fn::ImportValue: !Sub "${EnvironmentName}-VPCID"
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 1025
+          ToPort: 65535
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 1025
+          ToPort: 65535
+          CidrIp: 0.0.0.0/0  
+      Tags:
+      - Key: !Sub "kubernetes.io/cluster/${AWS::StackName}-EKS-Cluster"
+        Value: 'owned'
+      - Key: 'Name'
+        Value: !Join [ "", [ !Ref 'AWS::StackName', "-EKS-Worker-Node-Security-Group" ] ]
+
+  WorkerNodeLaunchConfig:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      AssociatePublicIpAddress: 'False'
+      IamInstanceProfile: !Ref WorkerNodeInstanceProfile
+      ImageId: ami-0c13bb9cbfd007e56
+      InstanceType: t3.medium
+      KeyName: !Ref KeyName
+      SecurityGroups:
+      - !Ref WorkerNodeSecurityGroup
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: 10
+            VolumeType: gp2
+            DeleteOnTermination: true
+      UserData:
+        Fn::Base64:
+          !Sub |
+            #!/bin/bash
+            set -o xtrace
+            /etc/eks/bootstrap.sh ${AWS::StackName}-EKS-Cluster ${WorkerNodeBootstrapArguments}
+            /opt/aws/bin/cfn-signal --exit-code $? \
+                     --stack  ${AWS::StackName} \
+                     --resource NodeGroup  \
+                     --region ${AWS::Region}
+
+  WorkerNodeGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      DesiredCapacity: 2
+      LaunchConfigurationName: !Ref WorkerNodeLaunchConfig
+      MinSize: 2
+      MaxSize: 3
+      VPCZoneIdentifier:
+        Fn::Split:
+                - ","
+                - Fn::ImportValue:
+                      Fn::Sub: ${EnvironmentName}-PUB-NETS
+      Tags:
+      - Key: Name
+        Value: !Sub "${EksCluster}-Worker-Node"
+        PropagateAtLaunch: 'true'
+      - Key: !Sub 'kubernetes.io/cluster/${EksCluster}'
+        Value: 'owned'
+        PropagateAtLaunch: 'true'
+    UpdatePolicy:
+      AutoScalingRollingUpdate:
+        MaxBatchSize: '1'
+        MinInstancesInService: 1
 
 Outputs:
   ClusterName:
-    Value: !Ref eksCluster
+    Value: !Ref EksCluster
     Description: Cluster Name
     Export:
       Name:
         Fn::Sub: "${EnvironmentName}-ClusterName"
 
   ClusterArn:
-    Value: !GetAtt eksCluster.Arn
+    Value: !GetAtt EksCluster.Arn
     Description: eks Cluster Arn
     Export:
       Name:
         Fn::Sub: "${EnvironmentName}-ClusterArn"
 
   ClusterEndpoint:
-    Value: !GetAtt eksCluster.Endpoint
-    Description: eksCluster Endpoint
+    Value: !GetAtt EksCluster.Endpoint
+    Description: EksCluster Endpoint
     Export:
       Name:
         Fn::Sub: "${EnvironmentName}-ClusterEndpoint"
-
-  ClusterControlPlaneSecurityGroup:
-    Value: !Ref ClusterControlPlaneSecurityGroup
-    Description: ClusterControlPlaneSecurityGroup
-    Export:
-      Name:
-        Fn::Sub: "${EnvironmentName}-ClusterControlPlaneSecurityGroup"
+  WorkNodesIAMRoleArn:
+    Description: The node instance role
+    Value: !GetAtt WorkerNodeInstanceRole.Arn      
